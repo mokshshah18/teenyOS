@@ -14,7 +14,7 @@ mem = sys.argv[2] if len(sys.argv) > 2 else "8M"
 PROMPT = b"# "
 
 qemu = subprocess.Popen(
-    ["qemu-system-i386", "-m", mem, "-kernel", image, "-nographic",
+    ["qemu-system-x86_64", "-m", mem, "-kernel", image, "-nographic",
      "-no-reboot", "-append", "console=ttyS0 quiet"],
     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 log = b""

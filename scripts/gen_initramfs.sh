@@ -9,7 +9,7 @@ root=$(realpath "$2")
 
 echo "dir /dev 0755 0 0"
 echo "nod /dev/console 0600 0 0 c 5 1"
-for d in bin sbin proc sys tmp etc root home var; do
+for d in bin sbin proc sys tmp etc root home var run mnt; do
 	echo "dir /$d 0755 0 0"
 done
 echo "file /bin/teeny $bin 0755 0 0"
@@ -25,7 +25,7 @@ done
 # Ship rootfs/ as-is: directories first, then files.
 cd "$root"
 find . -mindepth 1 -type d | sort | while read -r d; do
-	case " bin sbin proc sys tmp etc root home var " in
+	case " bin sbin proc sys tmp etc root home var run mnt " in
 	*" ${d#./} "*) continue ;;
 	esac
 	echo "dir /${d#./} 0755 0 0"

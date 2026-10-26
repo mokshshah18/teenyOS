@@ -150,15 +150,17 @@ pub fn date(_: &[&[u8]]) -> i32 {
     0
 }
 
-fn sysinfo() -> [u32; 16] {
-    let mut si = [0u32; 16];
+/// struct sysinfo: uptime, loads[3], totalram, freeram, sharedram,
+/// bufferram, totalswap, freeswap (all 64-bit), then u16 procs.
+fn sysinfo() -> [u64; 16] {
+    let mut si = [0u64; 16];
     sys::sc(sys::SYS_SYSINFO, si.as_mut_ptr() as usize, 0, 0, 0, 0);
     si
 }
 
 pub fn uptime(_: &[&[u8]]) -> i32 {
     let si = sysinfo();
-    let up = si[0] as u64;
+    let up = si[0];
     out(b"up ");
     if up >= 86400 {
         out_num(up / 86400);
@@ -170,11 +172,11 @@ pub fn uptime(_: &[&[u8]]) -> i32 {
     out(b":");
     out(&two(up % 60));
     out(b", ");
-    out_num((si[10] & 0xffff) as u64);
+    out_num(si[10] & 0xffff);
     out(b" processes, load average:");
     for i in 1..4 {
         // Loads are fixed point with 16 fractional bits.
-        let l = si[i] as u64 * 100 >> 16;
+        let l = si[i] * 100 >> 16;
         out(b" ");
         out_num(l / 100);
         out(b".");
@@ -227,14 +229,13 @@ pub fn df(_: &[&[u8]]) -> i32 {
         if f.len() < 3 {
             continue;
         }
-        let mut st = [0u32; 21];
+        // struct statfs: type, bsize, blocks, bfree, bavail, ... (all 64-bit)
+        let mut st = [0u64; 15];
         let c = sys::CStr::new(f[1]);
-        if sys::sc(sys::SYS_STATFS64, c.p(), 84, st.as_mut_ptr() as usize, 0, 0) < 0 {
+        if sys::sc(sys::SYS_STATFS, c.p(), st.as_mut_ptr() as usize, 0, 0, 0) < 0 {
             continue;
         }
-        let bs = st[1] as u64;
-        let q = |i: usize| st[i] as u64 | (st[i + 1] as u64) << 32;
-        let (blocks, bfree, bavail) = (q(2), q(4), q(6));
+        let (bs, blocks, bfree, bavail) = (st[1], st[2], st[3], st[4]);
         if blocks == 0 {
             continue;
         }
@@ -466,6 +467,10 @@ fn shutdown(cmd: usize, what: &[u8]) -> i32 {
     sys::kill(-1, sys::SIGTERM);
     sys::sleep_ms(300);
     sys::kill(-1, sys::SIGKILL);
+    // Unmount saved data so FAT disks are left clean.
+    for m in [&b"/root"[..], b"/mnt/data"] {
+        sys::umount(m);
+    }
     sys::sync();
     let r = sys::reboot(cmd);
     perr(what, b"", r);

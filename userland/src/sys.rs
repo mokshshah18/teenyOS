@@ -1,88 +1,82 @@
-// Raw Linux i386 system calls. Every wrapper returns the kernel's raw result:
-// non-negative on success, -errno on failure.
+// Raw Linux x86_64 system calls. Every wrapper returns the kernel's raw
+// result: non-negative on success, -errno on failure.
 
-use core::arch::global_asm;
-
-// cdecl trampoline: teeny_syscall(nr, a, b, c, d, e, f). Going through a real
-// function sidesteps LLVM reserving ebx/esi/ebp for its own use.
-global_asm!(
-    ".globl teeny_syscall",
-    "teeny_syscall:",
-    "push %ebx",
-    "push %esi",
-    "push %edi",
-    "push %ebp",
-    "mov 20(%esp), %eax",
-    "mov 24(%esp), %ebx",
-    "mov 28(%esp), %ecx",
-    "mov 32(%esp), %edx",
-    "mov 36(%esp), %esi",
-    "mov 40(%esp), %edi",
-    "mov 44(%esp), %ebp",
-    "int $0x80",
-    "pop %ebp",
-    "pop %edi",
-    "pop %esi",
-    "pop %ebx",
-    "ret",
-    options(att_syntax)
-);
-
-extern "C" {
-    fn teeny_syscall(n: usize, a: usize, b: usize, c: usize, d: usize, e: usize, f: usize)
-        -> isize;
-}
+use core::arch::asm;
 
 #[inline(always)]
 pub fn sc(n: usize, a: usize, b: usize, c: usize, d: usize, e: usize) -> isize {
-    unsafe { teeny_syscall(n, a, b, c, d, e, 0) }
+    sc6(n, a, b, c, d, e, 0)
 }
 
-pub const SYS_EXIT: usize = 1;
-pub const SYS_FORK: usize = 2;
-pub const SYS_READ: usize = 3;
-pub const SYS_WRITE: usize = 4;
-pub const SYS_OPEN: usize = 5;
-pub const SYS_CLOSE: usize = 6;
-pub const SYS_LINK: usize = 9;
-pub const SYS_UNLINK: usize = 10;
-pub const SYS_EXECVE: usize = 11;
-pub const SYS_CHDIR: usize = 12;
-pub const SYS_CHMOD: usize = 15;
-pub const SYS_GETPID: usize = 20;
-pub const SYS_MOUNT: usize = 21;
-pub const SYS_SYNC: usize = 36;
-pub const SYS_KILL: usize = 37;
-pub const SYS_RENAME: usize = 38;
-pub const SYS_MKDIR: usize = 39;
-pub const SYS_RMDIR: usize = 40;
-pub const SYS_PIPE: usize = 42;
-pub const SYS_BRK: usize = 45;
-pub const SYS_UMOUNT2: usize = 52;
-pub const SYS_IOCTL: usize = 54;
-pub const SYS_DUP2: usize = 63;
-pub const SYS_SETSID: usize = 66;
-pub const SYS_SETHOSTNAME: usize = 74;
-pub const SYS_SYMLINK: usize = 83;
-pub const SYS_READLINK: usize = 85;
-pub const SYS_REBOOT: usize = 88;
+#[inline(always)]
+pub fn sc6(n: usize, a: usize, b: usize, c: usize, d: usize, e: usize, f: usize) -> isize {
+    let r: isize;
+    unsafe {
+        asm!(
+            "syscall",
+            inlateout("rax") n as isize => r,
+            in("rdi") a,
+            in("rsi") b,
+            in("rdx") c,
+            in("r10") d,
+            in("r8") e,
+            in("r9") f,
+            lateout("rcx") _,
+            lateout("r11") _,
+            options(nostack)
+        );
+    }
+    r
+}
+
+pub const SYS_READ: usize = 0;
+pub const SYS_WRITE: usize = 1;
+pub const SYS_OPEN: usize = 2;
+pub const SYS_CLOSE: usize = 3;
+pub const SYS_STAT: usize = 4;
+pub const SYS_LSTAT: usize = 6;
+pub const SYS_POLL: usize = 7;
+pub const SYS_MMAP: usize = 9;
+pub const SYS_BRK: usize = 12;
+pub const SYS_RT_SIGACTION: usize = 13;
+pub const SYS_IOCTL: usize = 16;
+pub const SYS_PREAD: usize = 17;
+pub const SYS_PWRITE: usize = 18;
+pub const SYS_PIPE: usize = 22;
+pub const SYS_DUP2: usize = 33;
+pub const SYS_GETPID: usize = 39;
+pub const SYS_FORK: usize = 57;
+pub const SYS_EXECVE: usize = 59;
+pub const SYS_EXIT: usize = 60;
+pub const SYS_WAIT4: usize = 61;
+pub const SYS_KILL: usize = 62;
+pub const SYS_UNAME: usize = 63;
+pub const SYS_FCNTL: usize = 72;
+pub const SYS_FSYNC: usize = 74;
+pub const SYS_GETCWD: usize = 79;
+pub const SYS_CHDIR: usize = 80;
+pub const SYS_RENAME: usize = 82;
+pub const SYS_MKDIR: usize = 83;
+pub const SYS_RMDIR: usize = 84;
+pub const SYS_LINK: usize = 86;
+pub const SYS_UNLINK: usize = 87;
+pub const SYS_SYMLINK: usize = 88;
+pub const SYS_READLINK: usize = 89;
+pub const SYS_CHMOD: usize = 90;
+pub const SYS_SYSINFO: usize = 99;
+pub const SYS_GETUID: usize = 102;
 pub const SYS_SYSLOG: usize = 103;
-pub const SYS_WAIT4: usize = 114;
-pub const SYS_SYSINFO: usize = 116;
-pub const SYS_UNAME: usize = 122;
-pub const SYS_RT_SIGACTION: usize = 174;
-pub const SYS_GETCWD: usize = 183;
-pub const SYS_STAT64: usize = 195;
-pub const SYS_LSTAT64: usize = 196;
-pub const SYS_GETUID32: usize = 199;
-pub const SYS_GETDENTS64: usize = 220;
-pub const SYS_FCNTL64: usize = 221;
-pub const SYS_STATFS64: usize = 268;
-// The kernel is built without the old 32-bit time_t calls, so only the
-// time64 variants exist.
-pub const SYS_CLOCK_GETTIME64: usize = 403;
-pub const SYS_CLOCK_NANOSLEEP64: usize = 407;
-pub const SYS_UTIMENSAT64: usize = 412;
+pub const SYS_SETSID: usize = 112;
+pub const SYS_STATFS: usize = 137;
+pub const SYS_SYNC: usize = 162;
+pub const SYS_MOUNT: usize = 165;
+pub const SYS_UMOUNT2: usize = 166;
+pub const SYS_REBOOT: usize = 169;
+pub const SYS_SETHOSTNAME: usize = 170;
+pub const SYS_GETDENTS64: usize = 217;
+pub const SYS_CLOCK_GETTIME: usize = 228;
+pub const SYS_CLOCK_NANOSLEEP: usize = 230;
+pub const SYS_UTIMENSAT: usize = 280;
 
 pub const O_RDONLY: usize = 0;
 pub const O_WRONLY: usize = 1;
@@ -205,7 +199,7 @@ pub fn dup2(a: i32, b: i32) -> isize {
 pub fn dup_high(fd: i32, min: i32) -> i32 {
     const F_DUPFD_CLOEXEC: usize = 1030;
     sc(
-        SYS_FCNTL64,
+        SYS_FCNTL,
         fd as usize,
         F_DUPFD_CLOEXEC,
         min as usize,
@@ -227,7 +221,7 @@ pub fn getpid() -> isize {
 }
 
 pub fn getuid() -> isize {
-    sc(SYS_GETUID32, 0, 0, 0, 0, 0)
+    sc(SYS_GETUID, 0, 0, 0, 0, 0)
 }
 
 /// Returns (pid, raw wait status).
@@ -317,7 +311,7 @@ pub fn chmod(path: &[u8], mode: usize) -> isize {
 pub fn touch_now(path: &[u8]) -> isize {
     const AT_FDCWD: isize = -100;
     let c = CStr::new(path);
-    sc(SYS_UTIMENSAT64, AT_FDCWD as usize, c.p(), 0, 0, 0)
+    sc(SYS_UTIMENSAT, AT_FDCWD as usize, c.p(), 0, 0, 0)
 }
 
 pub fn getcwd(buf: &mut [u8]) -> isize {
@@ -384,7 +378,7 @@ pub fn sleep_ms(ms: u64) {
     let mut ts = [(ms / 1000) as i64, ((ms % 1000) * 1_000_000) as i64];
     // Restart after a signal that did not kill us, with the time remaining.
     while sc(
-        SYS_CLOCK_NANOSLEEP64,
+        SYS_CLOCK_NANOSLEEP,
         CLOCK_MONOTONIC,
         0,
         ts.as_ptr() as usize,
@@ -398,7 +392,7 @@ pub fn sleep_ms(ms: u64) {
 pub fn now() -> u64 {
     let mut ts = [0i64; 2];
     sc(
-        SYS_CLOCK_GETTIME64,
+        SYS_CLOCK_GETTIME,
         CLOCK_REALTIME,
         ts.as_mut_ptr() as usize,
         0,
@@ -412,46 +406,49 @@ pub const SIG_DFL: usize = 0;
 pub const SIG_IGN: usize = 1;
 
 pub fn signal(sig: usize, handler: usize) {
-    // struct sigaction { handler, flags, restorer, mask[2] }
+    // struct sigaction { handler, flags, restorer, mask }
     let act = [handler, 0usize, 0, 0, 0];
     sc(SYS_RT_SIGACTION, sig, act.as_ptr() as usize, 0, 8, 0);
 }
 
-/// struct stat64 as laid out by the i386 kernel (96 bytes, 4-byte aligned).
+/// struct stat as laid out by the x86_64 kernel (144 bytes).
 pub struct Stat {
-    pub b: [u8; 96],
+    pub b: [u8; 144],
 }
 
 impl Stat {
     fn u32_at(&self, o: usize) -> u32 {
         u32::from_le_bytes([self.b[o], self.b[o + 1], self.b[o + 2], self.b[o + 3]])
     }
-    pub fn mode(&self) -> u32 {
-        self.u32_at(16)
-    }
-    pub fn nlink(&self) -> u32 {
-        self.u32_at(20)
-    }
-    pub fn uid(&self) -> u32 {
-        self.u32_at(24)
-    }
-    pub fn gid(&self) -> u32 {
-        self.u32_at(28)
-    }
-    pub fn rdev(&self) -> u32 {
-        self.u32_at(32)
-    }
-    pub fn size(&self) -> u64 {
-        self.u32_at(44) as u64 | (self.u32_at(48) as u64) << 32
-    }
-    pub fn mtime(&self) -> u64 {
-        self.u32_at(72) as u64
-    }
-    pub fn ino(&self) -> u64 {
-        self.u32_at(88) as u64 | (self.u32_at(92) as u64) << 32
+    fn u64_at(&self, o: usize) -> u64 {
+        self.u32_at(o) as u64 | (self.u32_at(o + 4) as u64) << 32
     }
     pub fn dev(&self) -> u64 {
-        self.u32_at(0) as u64 | (self.u32_at(4) as u64) << 32
+        self.u64_at(0)
+    }
+    pub fn ino(&self) -> u64 {
+        self.u64_at(8)
+    }
+    pub fn nlink(&self) -> u32 {
+        self.u64_at(16) as u32
+    }
+    pub fn mode(&self) -> u32 {
+        self.u32_at(24)
+    }
+    pub fn uid(&self) -> u32 {
+        self.u32_at(28)
+    }
+    pub fn gid(&self) -> u32 {
+        self.u32_at(32)
+    }
+    pub fn rdev(&self) -> u32 {
+        self.u64_at(40) as u32
+    }
+    pub fn size(&self) -> u64 {
+        self.u64_at(48)
+    }
+    pub fn mtime(&self) -> u64 {
+        self.u64_at(88)
     }
     pub fn is_dir(&self) -> bool {
         self.mode() & S_IFMT == S_IFDIR
@@ -463,7 +460,7 @@ impl Stat {
 
 fn stat_with(n: usize, path: &[u8]) -> Option<Stat> {
     let c = CStr::new(path);
-    let mut st = Stat { b: [0; 96] };
+    let mut st = Stat { b: [0; 144] };
     if sc(n, c.p(), st.b.as_mut_ptr() as usize, 0, 0, 0) < 0 {
         None
     } else {
@@ -472,11 +469,11 @@ fn stat_with(n: usize, path: &[u8]) -> Option<Stat> {
 }
 
 pub fn stat(path: &[u8]) -> Option<Stat> {
-    stat_with(SYS_STAT64, path)
+    stat_with(SYS_STAT, path)
 }
 
 pub fn lstat(path: &[u8]) -> Option<Stat> {
-    stat_with(SYS_LSTAT64, path)
+    stat_with(SYS_LSTAT, path)
 }
 
 // Terminal control.
@@ -561,4 +558,78 @@ pub fn strerror(e: isize) -> &'static [u8] {
         40 => b"Too many symbolic links",
         _ => b"Error",
     }
+}
+
+// ---------------------------------------------------------------- desktop
+
+pub const POLLIN: i16 = 1;
+
+#[repr(C)]
+pub struct PollFd {
+    pub fd: i32,
+    pub events: i16,
+    pub revents: i16,
+}
+
+pub fn poll(fds: &mut [PollFd], timeout_ms: i32) -> isize {
+    sc(SYS_POLL, fds.as_mut_ptr() as usize, fds.len(), timeout_ms as isize as usize, 0, 0)
+}
+
+/// Map `len` bytes of `fd` shared and writable. Returns null on failure.
+pub fn mmap_shared(fd: i32, len: usize) -> *mut u8 {
+    const PROT_RW: usize = 3;
+    const MAP_SHARED: usize = 1;
+    let r = sc6(SYS_MMAP, 0, len, PROT_RW, MAP_SHARED, fd as usize, 0);
+    if r < 0 && r > -4096 {
+        core::ptr::null_mut()
+    } else {
+        r as *mut u8
+    }
+}
+
+/// Milliseconds on a clock that never jumps.
+pub fn now_ms() -> u64 {
+    let mut ts = [0i64; 2];
+    sc(SYS_CLOCK_GETTIME, CLOCK_MONOTONIC, ts.as_mut_ptr() as usize, 0, 0, 0);
+    ts[0] as u64 * 1000 + ts[1] as u64 / 1_000_000
+}
+
+pub fn set_nonblock(fd: i32) {
+    const F_GETFL: usize = 3;
+    const F_SETFL: usize = 4;
+    let fl = sc(SYS_FCNTL, fd as usize, F_GETFL, 0, 0, 0);
+    if fl >= 0 {
+        sc(SYS_FCNTL, fd as usize, F_SETFL, fl as usize | O_NONBLOCK, 0, 0);
+    }
+}
+
+pub const TIOCSWINSZ: usize = 0x5414;
+const TIOCGPTN: usize = 0x80045430;
+const TIOCSPTLCK: usize = 0x40045431;
+// Console: text or graphics mode, and the font the kernel draws with.
+pub const KDSETMODE: usize = 0x4b3a;
+pub const KD_TEXT: usize = 0;
+pub const KD_GRAPHICS: usize = 1;
+pub const KDFONTOP: usize = 0x4b72;
+
+pub fn set_winsize(fd: i32, rows: usize, cols: usize) {
+    let ws = [rows as u16, cols as u16, 0, 0];
+    ioctl(fd, TIOCSWINSZ, ws.as_ptr() as usize);
+}
+
+/// Open a pseudo-terminal pair: (master fd, slave path).
+pub fn openpty() -> Option<(i32, alloc::vec::Vec<u8>)> {
+    let m = open(b"/dev/ptmx", O_RDWR | 0o400000 /* O_NOCTTY */, 0);
+    if m < 0 {
+        return None;
+    }
+    let zero: i32 = 0;
+    let mut n: u32 = 0;
+    if ioctl(m, TIOCSPTLCK, &zero as *const i32 as usize) < 0 || ioctl(m, TIOCGPTN, &mut n as *mut u32 as usize) < 0 {
+        close(m);
+        return None;
+    }
+    let mut path = b"/dev/pts/".to_vec();
+    path.extend_from_slice(&crate::util::num(n as u64));
+    Some((m, path))
 }
