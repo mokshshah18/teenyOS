@@ -124,9 +124,11 @@ impl Desk {
                     0 => self.new_terminal(),
                     1 => self.open_about(),
                     3 => {
+                        crate::persist::save();
                         uefi::reset(true);
                     }
                     4 => {
+                        crate::persist::save();
                         uefi::reset(false);
                     }
                     _ => {}

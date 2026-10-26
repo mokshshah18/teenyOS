@@ -7,6 +7,7 @@ mod fb;
 mod font;
 mod desktop;
 mod net;
+mod persist;
 mod proc;
 mod rt;
 mod sched;
@@ -59,7 +60,9 @@ pub extern "efiapi" fn efi_main(image: Handle, st: *mut u8) -> Status {
     // The desktop (thread 0) needs a process context before any sys call.
     sched::init(proc::Proc::new(0));
     let _ = util::write_file(b"/etc/motd", b"teenyOS core -- a desktop OS with no kernel.\n");
-    let _ = util::write_file(b"/root/readme.txt", b"This filesystem lives in RAM.\nOpen more terminals from the teeny menu.\n");
+    let _ = util::write_file(b"/root/readme.txt", b"This filesystem lives in RAM.\nRun `persist save` to keep your files across reboots.\n");
+    // Restore saved files, if any, before the first shell starts.
+    persist::load_at_boot();
 
     desktop::run(scr)
 }

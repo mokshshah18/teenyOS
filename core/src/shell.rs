@@ -142,7 +142,8 @@ fn run(line: &[u8]) {
         b"uname" => out(b"teenyOS core x86_64 (UEFI)\n"),
         b"net" => { crate::net::net(&words); }
         b"wget" => { crate::net::wget(&words); }
-        b"help" => out(b"builtins: echo pwd cd ls cat mkdir write clear uname net wget help\n"),
+        b"persist" => { crate::persist::main(&words); }
+        b"help" => out(b"builtins: echo pwd cd ls cat mkdir write clear uname net wget persist help\n"),
         _ => {
             out(cmd);
             out(b": not found\n");

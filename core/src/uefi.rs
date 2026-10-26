@@ -571,3 +571,122 @@ pub fn raw_alloc(size: usize) -> *mut u8 {
 pub fn raw_free(p: *mut u8) {
     free(p);
 }
+
+// --- firmware file I/O on the boot FAT volume, for persistence ---
+
+fn file_open(dir: *mut u8, name: &[u16], mode: u64, attr: u64) -> *mut u8 {
+    unsafe {
+        let f: extern "efiapi" fn(*mut u8, *mut *mut u8, *const u16, u64, u64) -> Status = core::mem::transmute(rd::<usize>(dir, 8));
+        let mut new: *mut u8 = ptr::null_mut();
+        if f(dir, &mut new, name.as_ptr(), mode, attr) == OK {
+            new
+        } else {
+            ptr::null_mut()
+        }
+    }
+}
+
+fn file_close(f: *mut u8) {
+    unsafe {
+        let c: extern "efiapi" fn(*mut u8) -> Status = core::mem::transmute(rd::<usize>(f, 16));
+        c(f);
+    }
+}
+
+/// Open the root directory of the FAT volume teenyOS booted from.
+fn volume_root() -> *mut u8 {
+    let sfs = boot_volume();
+    if sfs.is_null() {
+        return ptr::null_mut();
+    }
+    unsafe {
+        let open: extern "efiapi" fn(*mut u8, *mut *mut u8) -> Status = core::mem::transmute(rd::<usize>(sfs, 8));
+        let mut root: *mut u8 = ptr::null_mut();
+        if open(sfs, &mut root) == OK {
+            root
+        } else {
+            ptr::null_mut()
+        }
+    }
+}
+
+fn utf16z(s: &[u8]) -> alloc::vec::Vec<u16> {
+    let mut v: alloc::vec::Vec<u16> = s.iter().map(|&b| b as u16).collect();
+    v.push(0);
+    v
+}
+
+/// Read a whole file from the boot volume (path like "\\teenyos\\home.dat").
+pub fn fs_read(path: &[u8]) -> Option<alloc::vec::Vec<u8>> {
+    let root = volume_root();
+    if root.is_null() {
+        return None;
+    }
+    let name = utf16z(path);
+    let f = file_open(root, &name, 1, 0); // READ
+    file_close(root);
+    if f.is_null() {
+        return None;
+    }
+    let mut out = alloc::vec::Vec::new();
+    let mut buf = alloc::vec![0u8; 64 * 1024];
+    unsafe {
+        let read: extern "efiapi" fn(*mut u8, *mut usize, *mut u8) -> Status = core::mem::transmute(rd::<usize>(f, 32));
+        loop {
+            let mut n = buf.len();
+            if read(f, &mut n, buf.as_mut_ptr()) != OK || n == 0 {
+                break;
+            }
+            out.extend_from_slice(&buf[..n]);
+        }
+    }
+    file_close(f);
+    Some(out)
+}
+
+/// Write a whole file to the boot volume, creating the one parent directory
+/// in `path` if needed (path like "\\teenyos\\home.dat").
+pub fn fs_write(path: &[u8], data: &[u8]) -> bool {
+    let root = volume_root();
+    if root.is_null() {
+        return false;
+    }
+    const CREATE: u64 = 0x8000_0000_0000_0000 | 2 | 1;
+    const DIR: u64 = 0x10;
+    // Create the parent directory, if the path has one.
+    if let Some(slash) = path.iter().rposition(|&c| c == b'\\') {
+        if slash > 0 {
+            let d = utf16z(&path[..slash]);
+            let dh = file_open(root, &d, CREATE, DIR);
+            if !dh.is_null() {
+                file_close(dh);
+            }
+        }
+    }
+    let name = utf16z(path);
+    let f = file_open(root, &name, CREATE, 0);
+    file_close(root);
+    if f.is_null() {
+        return false;
+    }
+    let mut ok = true;
+    unsafe {
+        // Truncate: set the file size to 0 first (SetPosition to 0 + write,
+        // then the file keeps only what we wrote since CREATE opened fresh or
+        // existing; to be safe, set file size via SetPosition then Flush).
+        let write: extern "efiapi" fn(*mut u8, *mut usize, *const u8) -> Status = core::mem::transmute(rd::<usize>(f, 40));
+        let mut off = 0;
+        while off < data.len() {
+            let mut n = (data.len() - off).min(64 * 1024);
+            if write(f, &mut n, data[off..].as_ptr()) != OK || n == 0 {
+                ok = false;
+                break;
+            }
+            off += n;
+        }
+        let flush: extern "efiapi" fn(*mut u8) -> Status = core::mem::transmute(rd::<usize>(f, 80));
+        flush(f);
+    }
+    file_close(f);
+    ok
+}
