@@ -1,5 +1,4 @@
 
-  teenyOS -- a whole Linux system in under 1 MB.
-  Type 'help' for commands, 'edit FILE' to edit, 'poweroff' to stop.
-  Everything lives in RAM: changes vanish at reboot.
+  teenyOS. Type 'help' to list commands, 'edit FILE' to edit a file.
+  Files live in RAM until you run 'persist enable' (or use the Storage app).
 

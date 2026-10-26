@@ -6,13 +6,20 @@
 
 extern crate alloc;
 
+mod desktop;
+mod disk;
 mod edit;
+mod fb;
 mod files;
 mod init;
+mod install;
+mod net;
+mod persist;
 mod rt;
 mod sh;
 mod sys;
 mod system;
+mod term;
 mod text;
 mod util;
 
@@ -26,6 +33,7 @@ pub const APPLETS: &[(&[u8], Applet)] = &[
     (b"clear", system::clear),
     (b"cp", files::cp),
     (b"date", system::date),
+    (b"desktop", desktop::main),
     (b"df", system::df),
     (b"dirname", text::dirname),
     (b"dmesg", system::dmesg),
@@ -48,18 +56,23 @@ pub const APPLETS: &[(&[u8], Applet)] = &[
     (b"mount", system::mount),
     (b"mv", files::mv),
     (b"poweroff", system::poweroff),
+    (b"net", net::main),
+    (b"persist", persist::main),
+    (b"ping", net::ping),
     (b"ps", system::ps),
     (b"pwd", files::pwd),
     (b"reboot", system::reboot),
     (b"rm", files::rm),
     (b"rmdir", files::rmdir),
     (b"seq", text::seq),
+    (b"share", net::share),
     (b"sh", sh::main),
     (b"sleep", system::sleep),
     (b"sort", text::sort),
     (b"stat", files::stat),
     (b"sync", system::sync),
     (b"tail", text::tail),
+    (b"teeny-install", install::main),
     (b"tee", text::tee),
     (b"test", text::test),
     (b"touch", files::touch),
@@ -69,6 +82,7 @@ pub const APPLETS: &[(&[u8], Applet)] = &[
     (b"uniq", text::uniq),
     (b"uptime", system::uptime),
     (b"wc", text::wc),
+    (b"wget", net::wget),
     (b"which", system::which),
     (b"whoami", system::whoami),
 ];

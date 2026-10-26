@@ -59,9 +59,19 @@ pub fn main(_: &[&[u8]]) -> i32 {
     sys::mount(b"proc", b"/proc", b"proc", 0, b"");
     sys::mount(b"sysfs", b"/sys", b"sysfs", 0, b"");
     sys::mount(b"tmpfs", b"/tmp", b"tmpfs", 0, b"mode=1777");
+    sys::mkdir(b"/dev/pts", 0o755);
+    sys::mount(b"devpts", b"/dev/pts", b"devpts", 0, b"");
+    let cmdline = read_file(b"/proc/cmdline").unwrap_or_default();
+    if find(&cmdline, b"teeny.text").is_some() {
+        let _ = write_file(b"/run/textmode", b"1");
+    }
     if let Ok(h) = read_file(b"/etc/hostname") {
         sys::sethostname(trim(&h));
     }
+    if sys::stat(b"/sys/class/net").is_some() {
+        spawn(&[b"net", b"daemon"], None);
+    }
+    crate::persist::boot_scan(&cmdline);
     if sys::stat(b"/etc/rc").is_some() {
         let pid = spawn(&[b"/bin/sh", b"/etc/rc"], None);
         if pid > 0 {
@@ -69,13 +79,14 @@ pub fn main(_: &[&[u8]]) -> i32 {
         }
     }
 
-    // One shell per console that can actually be opened.
-    let mut slots: Vec<(&[u8], isize, u64)> = Vec::new();
+    // One login per console that can actually be opened: the desktop on
+    // the screen when there is a framebuffer, a shell everywhere else.
+    let mut slots: Vec<(&[u8], isize, u64, bool)> = Vec::new();
     for &c in CONSOLES {
         let fd = sys::open(c, sys::O_RDWR | sys::O_NONBLOCK, 0);
         if fd >= 0 {
             sys::close(fd);
-            slots.push((c, 0, 0));
+            slots.push((c, 0, 0, false));
         }
     }
     if slots.is_empty() {
@@ -90,10 +101,11 @@ pub fn main(_: &[&[u8]]) -> i32 {
                     sys::sleep_ms(1000);
                 }
                 s.2 = sys::now();
-                s.1 = spawn(&[b"-sh"], Some(s.0));
+                s.3 = s.0 == b"/dev/tty1" && sys::stat(b"/dev/fb0").is_some() && sys::stat(b"/run/textmode").is_none();
+                s.1 = spawn(if s.3 { &[b"desktop"] } else { &[b"-sh"] }, Some(s.0));
             }
         }
-        let (pid, _) = sys::wait4(-1, 0);
+        let (pid, st) = sys::wait4(-1, 0);
         if pid < 0 {
             sys::sleep_ms(1000);
             continue;
@@ -101,6 +113,10 @@ pub fn main(_: &[&[u8]]) -> i32 {
         for s in slots.iter_mut() {
             if s.1 == pid {
                 s.1 = 0;
+                // A desktop that failed to start must not be retried forever.
+                if s.3 && st != 0 {
+                    let _ = write_file(b"/run/textmode", b"1");
+                }
             }
         }
     }
