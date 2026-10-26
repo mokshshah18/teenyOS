@@ -1,0 +1,3 @@
+# Runs once at boot, before the login shells start.
+mkdir -p /home /var/log
+echo "teenyOS: booted $(uname -r) at $(date)" > /var/log/boot

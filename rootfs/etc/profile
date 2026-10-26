@@ -1,0 +1,5 @@
+# Sourced by login shells.
+export PATH=/bin:/sbin
+export HOME=/root
+export PS1='\e[1;32m\u@\h\e[0m:\e[1;34m\w\e[0m\$ '
+cat /etc/motd
