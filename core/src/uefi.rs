@@ -356,6 +356,7 @@ pub fn open_gop() -> Option<Gop> {
         if w <= 0 || h <= 0 {
             return None;
         }
+        PANIC_GOP.store(g, Ordering::SeqCst);
         Some(Gop { w, h, handle: g })
     }
 }
@@ -412,6 +413,22 @@ pub fn image_handle_device() -> Handle {
 }
 
 static LOADED: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static PANIC_GOP: AtomicPtr<u8> = AtomicPtr::new(ptr::null_mut());
+
+/// Fill the whole screen one colour, for the panic handler to signal visibly.
+pub fn mark(color: u32, x: i32) {
+    let g = PANIC_GOP.load(Ordering::SeqCst);
+    if !g.is_null() {
+        gop_fill(g, color, x, 200, 30, 30);
+    }
+}
+
+pub fn panic_flash(color: u32) {
+    let g = PANIC_GOP.load(Ordering::SeqCst);
+    if !g.is_null() {
+        gop_fill(g, color, 0, 0, 4096, 2160);
+    }
+}
 
 pub fn set_image(h: Handle) {
     LOADED.store(h, Ordering::SeqCst);
@@ -434,6 +451,45 @@ pub fn boot_volume() -> *mut u8 {
             locate_protocol(&SFS_GUID) as *mut u8
         } else {
             sfs
+        }
+    }
+}
+
+// --- direct COM1 serial output, for reliable ordered debugging under QEMU ---
+
+#[inline]
+unsafe fn outb(port: u16, val: u8) {
+    core::arch::asm!("out dx, al", in("dx") port, in("al") val, options(nomem, nostack, preserves_flags));
+}
+
+#[inline]
+unsafe fn inb(port: u16) -> u8 {
+    let v: u8;
+    core::arch::asm!("in al, dx", out("al") v, in("dx") port, options(nomem, nostack, preserves_flags));
+    v
+}
+
+pub fn serial_init() {
+    unsafe {
+        outb(0x3f8 + 1, 0x00);
+        outb(0x3f8 + 3, 0x80);
+        outb(0x3f8 + 0, 0x01);
+        outb(0x3f8 + 1, 0x00);
+        outb(0x3f8 + 3, 0x03);
+        outb(0x3f8 + 2, 0xc7);
+        outb(0x3f8 + 4, 0x0b);
+    }
+}
+
+pub fn serial_print(s: &str) {
+    unsafe {
+        for &b in s.as_bytes() {
+            if b == b'\n' {
+                while inb(0x3f8 + 5) & 0x20 == 0 {}
+                outb(0x3f8, b'\r');
+            }
+            while inb(0x3f8 + 5) & 0x20 == 0 {}
+            outb(0x3f8, b);
         }
     }
 }

@@ -1,7 +1,7 @@
 // Small helpers shared by the applets.
 
 use crate::rt::{err, out};
-use crate::sys;
+use crate::sysb as sys;
 use alloc::vec::Vec;
 
 pub fn num(mut n: u64) -> Vec<u8> {
@@ -175,29 +175,7 @@ pub fn dirname(p: &[u8]) -> &[u8] {
 
 /// Entries of a directory, excluding "." and "..", unsorted.
 pub fn list_dir(path: &[u8]) -> Result<Vec<Vec<u8>>, isize> {
-    let fd = sys::open(path, sys::O_RDONLY | sys::O_DIRECTORY, 0);
-    if fd < 0 {
-        return Err(fd as isize);
-    }
-    let mut names = Vec::new();
-    let mut buf = [0u8; 2048];
-    loop {
-        let n = sys::getdents(fd, &mut buf);
-        if n <= 0 {
-            break;
-        }
-        let mut off = 0usize;
-        while off < n as usize {
-            let reclen = u16::from_le_bytes([buf[off + 16], buf[off + 17]]) as usize;
-            let name = unsafe { crate::rt::cstr(buf.as_ptr().add(off + 19)) };
-            if name != b"." && name != b".." {
-                names.push(name.to_vec());
-            }
-            off += reclen;
-        }
-    }
-    sys::close(fd);
-    Ok(names)
+    sys::list_dir(path)
 }
 
 /// Split into lines without their terminating newlines.
