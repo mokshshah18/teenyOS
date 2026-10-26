@@ -48,6 +48,37 @@ fn readline() -> Option<Vec<u8>> {
     }
 }
 
+/// Minimal option parser: single-letter flags, some taking a value.
+pub fn opts<'a>(args: &[&'a [u8]], with_value: &[u8]) -> (Vec<(u8, &'a [u8])>, Vec<&'a [u8]>) {
+    let mut flags = Vec::new();
+    let mut ops = Vec::new();
+    let mut i = 1;
+    while i < args.len() {
+        let a = args[i];
+        if a.len() > 1 && a[0] == b'-' && a[1] != b'-' {
+            let mut j = 1;
+            while j < a.len() {
+                let f = a[j];
+                if with_value.contains(&f) {
+                    let v: &[u8] = if j + 1 < a.len() { &a[j + 1..] } else { i += 1; args.get(i).copied().unwrap_or(b"") };
+                    flags.push((f, v));
+                    break;
+                }
+                flags.push((f, b"" as &[u8]));
+                j += 1;
+            }
+        } else {
+            ops.push(a);
+        }
+        i += 1;
+    }
+    (flags, ops)
+}
+
+pub fn val<'a>(flags: &[(u8, &'a [u8])], f: u8) -> Option<&'a [u8]> {
+    flags.iter().rev().find(|&&(c, _)| c == f).map(|&(_, v)| v)
+}
+
 fn run(line: &[u8]) {
     let words: Vec<&[u8]> = line.split(|&c| c == b' ').filter(|w| !w.is_empty()).collect();
     let Some(&cmd) = words.first() else { return };
@@ -109,7 +140,9 @@ fn run(line: &[u8]) {
         }
         b"clear" => out(b"\x1b[H\x1b[2J"),
         b"uname" => out(b"teenyOS core x86_64 (UEFI)\n"),
-        b"help" => out(b"builtins: echo pwd cd ls cat mkdir write clear uname help\n"),
+        b"net" => { crate::net::net(&words); }
+        b"wget" => { crate::net::wget(&words); }
+        b"help" => out(b"builtins: echo pwd cd ls cat mkdir write clear uname net wget help\n"),
         _ => {
             out(cmd);
             out(b": not found\n");

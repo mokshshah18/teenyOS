@@ -6,6 +6,7 @@ extern crate alloc;
 mod fb;
 mod font;
 mod desktop;
+mod net;
 mod proc;
 mod rt;
 mod sched;
@@ -49,6 +50,9 @@ pub extern "efiapi" fn efi_main(image: Handle, st: *mut u8) -> Status {
     uefi::set_image(image);
     let Some(gop) = uefi::open_gop() else { return 1 };
     let scr = Screen::new(&gop);
+    // Bind drivers to devices so disks and network adapters come up. The
+    // firmware already connected the console; this reaches the rest.
+    uefi::connect_all();
 
     vfs::init();
     vfs::set_now(uefi::wall_time());

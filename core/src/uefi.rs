@@ -493,3 +493,81 @@ pub fn serial_print(s: &str) {
         }
     }
 }
+
+// --- networking protocol GUIDs and generic event helpers ---
+
+pub const HTTP_SB_GUID: Guid = Guid(0xbdc8e6af, 0xd9bc, 0x4379, [0xa7, 0x2a, 0xe0, 0xc4, 0xe7, 0x5d, 0xae, 0x1c]);
+pub const HTTP_GUID: Guid = Guid(0x7a59b29b, 0x910b, 0x4171, [0x82, 0x42, 0xa8, 0x5a, 0x0d, 0xf2, 0x5b, 0x5b]);
+pub const DNS4_SB_GUID: Guid = Guid(0xb625b186, 0xe063, 0x44f7, [0x89, 0x05, 0x6a, 0x74, 0xdc, 0x6f, 0x52, 0xb4]);
+pub const DHCP4_SB_GUID: Guid = Guid(0x9d9a39d8, 0xbd42, 0x4a73, [0xa4, 0xd5, 0x8e, 0xe9, 0x4b, 0xe1, 0x13, 0x80]);
+pub const TLS_SB_GUID: Guid = Guid(0x952cb795, 0xff36, 0x48cf, [0xa2, 0x49, 0x4d, 0xf4, 0x86, 0xd6, 0xab, 0x8d]);
+pub const IP4CONFIG2_GUID: Guid = Guid(0x5b446ed1, 0xe30b, 0x4faa, [0x87, 0x1a, 0x36, 0x54, 0xec, 0xa3, 0x60, 0x80]);
+pub const SNP_GUID: Guid = Guid(0xa19832b9, 0xac25, 0x11d3, [0x9a, 0x2d, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d]);
+
+/// A plain waitable event (no notify function), for completion tokens.
+pub fn create_event() -> Handle {
+    unsafe {
+        let f: extern "efiapi" fn(u32, usize, *const c_void, *const c_void, *mut Handle) -> Status = core::mem::transmute(bsfn(7));
+        let mut e: Handle = ptr::null_mut();
+        if f(0, 8, ptr::null(), ptr::null(), &mut e) == OK {
+            e
+        } else {
+            ptr::null_mut()
+        }
+    }
+}
+
+pub fn close_event(e: Handle) {
+    unsafe {
+        let f: extern "efiapi" fn(Handle) -> Status = core::mem::transmute(bsfn(11));
+        f(e);
+    }
+}
+
+/// Count handles that support a protocol (for `net` status).
+pub fn count_protocol(g: &Guid) -> usize {
+    let (hs, n) = locate_handles(g);
+    if !hs.is_null() {
+        free(hs as *mut u8);
+    }
+    n
+}
+
+/// Service-binding CreateChild: returns a new child handle, or null.
+pub fn sb_create_child(sb: *mut u8) -> Handle {
+    unsafe {
+        let f: extern "efiapi" fn(*mut u8, *mut Handle) -> Status = core::mem::transmute(rd::<usize>(sb, 0));
+        let mut child: Handle = ptr::null_mut();
+        if f(sb, &mut child) == OK {
+            child
+        } else {
+            ptr::null_mut()
+        }
+    }
+}
+
+pub fn sb_destroy_child(sb: *mut u8, child: Handle) {
+    unsafe {
+        let f: extern "efiapi" fn(*mut u8, Handle) -> Status = core::mem::transmute(rd::<usize>(sb, 8));
+        f(sb, child);
+    }
+}
+
+/// A NUL-terminated CHAR8 (ASCII) string from the firmware, as a slice.
+pub unsafe fn cstr8<'a>(p: *const u8) -> &'a [u8] {
+    if p.is_null() {
+        return &[];
+    }
+    let mut n = 0;
+    while *p.add(n) != 0 {
+        n += 1;
+    }
+    core::slice::from_raw_parts(p, n)
+}
+
+pub fn raw_alloc(size: usize) -> *mut u8 {
+    alloc(size)
+}
+pub fn raw_free(p: *mut u8) {
+    free(p);
+}
