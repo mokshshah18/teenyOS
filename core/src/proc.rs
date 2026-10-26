@@ -1,3 +1,4 @@
+#![allow(dead_code)] // complete subsystem API; some entries are not yet exercised
 // Per-thread process context: the file-descriptor table, current directory
 // and environment. Green threads share memory but each has its own Proc, so
 // the shell and applets see a normal Unix-like process.

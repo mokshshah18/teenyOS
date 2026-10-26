@@ -11,7 +11,10 @@ mod persist;
 mod proc;
 mod rt;
 mod sched;
+mod applets;
+mod files;
 mod shell;
+mod text;
 mod sysb;
 mod tty;
 mod uefi;
@@ -63,6 +66,9 @@ pub extern "efiapi" fn efi_main(image: Handle, st: *mut u8) -> Status {
     let _ = util::write_file(b"/root/readme.txt", b"This filesystem lives in RAM.\nRun `persist save` to keep your files across reboots.\n");
     // Restore saved files, if any, before the first shell starts.
     persist::load_at_boot();
+
+    #[cfg(feature = "selftest")]
+    shell::selftest();
 
     desktop::run(scr)
 }

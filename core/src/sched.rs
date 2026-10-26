@@ -1,3 +1,4 @@
+#![allow(dead_code)] // complete subsystem API; some entries are not yet exercised
 // Cooperative green threads. With no kernel and boot services still live,
 // teenyOS core runs one real thread of execution; this layer slices it into
 // many. The desktop is the main loop and calls pump() each frame, which lets
@@ -39,7 +40,6 @@ struct Sched {
     cur: usize,       // index of the running thread (0 = desktop)
     main_sp: u64,     // the scheduler's own context
     next_id: u32,
-    switch_to: usize, // which thread pump() is about to enter
 }
 
 // A single-threaded program, so one RefCell guards the whole scheduler.
@@ -87,7 +87,6 @@ pub fn init(desktop_proc: Proc) {
         cur: 0,
         main_sp: 0,
         next_id: 1,
-        switch_to: 0,
     };
     // Thread 0 is the desktop: it runs on the original stack, no entry.
     s.threads.push(Thread {
@@ -125,7 +124,7 @@ pub fn spawn(proc: Proc, entry: impl FnOnce() + 'static) -> u32 {
     unsafe {
         sp -= 8; // alignment pad
         sp -= 8;
-        *(sp as *mut u64) = teeny_thread_start as u64; // ret target (16-aligned)
+        *(sp as *mut u64) = teeny_thread_start as *const () as u64; // ret target (16-aligned)
         sp -= 8 * 6; // r15,r14,r13,r12,rbp,rbx (values don't matter)
     }
     with(|s| {

@@ -6,7 +6,6 @@
 // the server's certificate.
 
 use crate::rt::out;
-use crate::sysb as sys;
 use crate::uefi::{self, Handle};
 use crate::util::*;
 use alloc::vec;

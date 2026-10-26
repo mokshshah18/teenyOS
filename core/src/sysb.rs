@@ -1,3 +1,4 @@
+#![allow(dead_code)] // a deliberately complete POSIX-style syscall surface; not every call is wired into an applet yet
 // The `sys` surface the shell and applets call. On the Linux edition these are
 // real system calls; here they run against the RAM filesystem, the per-thread
 // fd table, the terminal channels and the cooperative scheduler. Blocking
@@ -22,6 +23,13 @@ pub const S_IFMT: u32 = vfs::S_IFMT;
 pub const S_IFDIR: u32 = vfs::S_IFDIR;
 pub const S_IFREG: u32 = vfs::S_IFREG;
 pub const S_IFLNK: u32 = vfs::S_IFLNK;
+pub const S_IFCHR: u32 = 0o020000;
+pub const S_IFBLK: u32 = 0o060000;
+
+pub const ENOENT: isize = -2;
+pub const EEXIST: isize = -17;
+pub const EXDEV: isize = -18;
+pub const EISDIR: isize = -21;
 
 pub struct Stat {
     pub mode: u32,
@@ -51,6 +59,12 @@ impl Stat {
         0
     }
     pub fn gid(&self) -> u32 {
+        0
+    }
+    pub fn rdev(&self) -> u32 {
+        0
+    }
+    pub fn dev(&self) -> u64 {
         0
     }
     pub fn is_dir(&self) -> bool {
@@ -354,6 +368,11 @@ pub fn unlink(path: &[u8]) -> isize {
 pub fn rename(a: &[u8], b: &[u8]) -> isize {
     let cwd = sched::with_proc(|p| p.cwd.clone());
     vfs::rename(&cwd, a, b) as isize
+}
+
+pub fn link(_a: &[u8], _b: &[u8]) -> isize {
+    // The RAM filesystem has no hard links; callers fall back to copying.
+    EXDEV
 }
 
 pub fn symlink(target: &[u8], path: &[u8]) -> isize {

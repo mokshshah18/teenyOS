@@ -17,3 +17,6 @@ strip = true
 
 [profile.dev]
 panic = "abort"
+
+[features]
+selftest = []

@@ -8,6 +8,12 @@ with no libc.
 
 Demo video (10 s, recorded from a real boot in QEMU): [docs/teenyOS-demo.mp4](docs/teenyOS-demo.mp4)
 
+There are two editions. The one described first runs on the Linux kernel and
+targets real, varied PC hardware. The second, **[teenyOS core](#teenyos-core--the-kernel-less-edition)**,
+has no kernel at all: it is a 120 KB program that runs on the UEFI firmware and
+still has a windowed desktop, a real shell, a filesystem, persistence and
+networking. It is the answer to "do all of that in under a megabyte."
+
 ## Why 2 MB and not 1 MB
 
 The first version of teenyOS was a 754 KB image. It booted in QEMU to a shell
@@ -181,3 +187,102 @@ patches in `kernel/patches`. It fails if the kernel goes over its budget
   - `sh.rs`: the shell.
 - **Image** (`scripts/mkimage.py`): MBR, loader, and an 8 MB FAT16
   partition written in pure Python, with the kernel in contiguous clusters.
+
+# teenyOS core — the kernel-less edition
+
+The Linux edition stops at 877 KB because a kernel that can see real hardware
+costs most of that. teenyOS core removes the kernel. It is a **121 KB** UEFI
+application (`core/`) that boots to a windowed desktop and never looks back —
+and the whole OS fits in that one figure, because it writes none of the drivers
+an OS usually carries.
+
+## Firmware as the driver layer
+
+A UEFI machine, before an OS starts, already has working drivers: the graphics
+output protocol (GOP) is drawing to the panel, a pointer protocol is tracking
+the mouse, the keyboard protocol is reading keys, a FAT driver is mounted on
+the boot volume, and — on most firmware — a full network stack sits behind
+`EFI_HTTP_PROTOCOL`, DHCP and DNS included. An OS normally throws all of that
+away the instant it calls `ExitBootServices` and starts talking to the chips
+itself.
+
+teenyOS core simply never makes that call. It stays a UEFI application with boot
+services live, and calls the firmware's protocols the way a program calls a
+library. So the code it does *not* contain is the code that makes other kernels
+big: no GOP driver, no USB stack, no NIC driver, no TLS implementation, no FAT
+code. The firmware already has them. What teenyOS core adds on top is only the
+parts that make it feel like an OS:
+
+- `sched.rs`: cooperative green threads, so each terminal window is its own
+  shell running concurrently on the single thread the firmware gave us.
+- `vfs.rs`, `proc.rs`, `sysb.rs`: a RAM filesystem, per-thread file-descriptor
+  tables, and a small POSIX-style syscall surface over them.
+- `desktop.rs`, `fb.rs`, `tty.rs`: the window manager, the drawing primitives,
+  and a VT100 terminal — painted through the firmware's GOP.
+- `shell.rs`: the shell (below).
+- `net.rs`, `persist.rs`: downloads and persistence, both over firmware
+  protocols.
+- `rt.rs`: a slab allocator over one firmware memory block, and the `#![no_std]`
+  runtime — memory intrinsics, panic handler, no libc.
+
+## What it does
+
+- **Desktop.** Draggable windows, a taskbar, an About window, and as many
+  terminal windows as you open, each a separate shell thread. `F1` opens a
+  terminal, `F2` cycles focus, `F3` the About window, `F4` closes one.
+- **Shell.** Quoting, `$VAR` / `${VAR}` / `$?` and `$(command)` substitution
+  (nested), filename globbing (`*`, `?`, `[a-z]`), `;` `&&` `||` sequencing,
+  `|` pipelines, `> >> < 2>` redirection, tab completion and history. Plus the
+  applets shared with the Linux edition: `ls cp mv rm mkdir rmdir ln touch pwd
+  chmod stat cat grep wc head tail sort uniq tee seq basename dirname hexdump
+  more test clear uname date free ps env`.
+- **Networking.** `net` reports what the firmware's stack offers; `wget
+  http://host/path` downloads a file through `EFI_HTTP_PROTOCOL`, bringing the
+  link up with DHCP (falling back to a static address).
+- **Persistence.** The filesystem is in RAM; `persist save` packs `/root` into
+  a single archive and writes it to the boot volume through the firmware's FAT
+  driver, under `\teenyos\home.dat`. It is restored at the next boot. Power off
+  from the menu saves first.
+
+## HTTPS, honestly
+
+`wget https://…` takes the same path as `http://`: `EFI_HTTP_PROTOCOL`
+negotiates TLS itself when the firmware ships a TLS protocol, and this build
+confirms that protocol is present before using it. So HTTPS works as far as the
+firmware exposes it, and teenyOS core carries no TLS code of its own to make it
+work. The honest caveat: in the OVMF/QEMU sandbox used for testing, the
+firmware's certificate store has no public CAs and outbound traffic is proxied,
+so a real fetch from a public HTTPS site is not something this environment can
+demonstrate. The plaintext HTTP path is tested end to end (below); the HTTPS
+path is the same code with the firmware's TLS switched on.
+
+## The size story
+
+The OS is the 121 KB `BOOTX64.EFI`. The bootable *image* (`make core`) is
+larger — 64 MB by default — but that is just an empty FAT32 volume to hold the
+binary and your saved files, the same way a 23 MB ISO is mostly empty space
+around a kernel. Nothing in the 64 MB is teenyOS; it is the stick. Measure the
+OS by the binary.
+
+## Build, run, test
+
+```sh
+rustup target add x86_64-unknown-uefi
+make core        # build/teenyOS-core.img, a bootable UEFI stick
+make run-core    # boot it in QEMU under OVMF
+make core-test   # end-to-end test of the shell on real firmware
+```
+
+Write `build/teenyOS-core.img` to a USB stick exactly like the Linux edition
+(Etcher, Rufus in DD mode, or `dd`), plug it into any UEFI PC with Secure Boot
+off, and it boots to the desktop. The stick is writable, so `persist save`
+keeps your files on it.
+
+`make core-test` is unusual and worth explaining. There is no way to type `ls |
+sort | head` into a QEMU framebuffer reliably, so the test does not try. A
+`selftest` build runs the real parser and executor at boot against a fixed
+script — pipes, substitution, variables, `&&`/`||`, quoting, redirection,
+globbing — writes the labelled output to `/root/RESULTS`, and persists it. The
+host then reads that archive back off the FAT image and checks every case. The
+shell under test is the exact code a user's keystrokes reach; the file on disk
+is the proof it ran.

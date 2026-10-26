@@ -1,3 +1,4 @@
+#![allow(dead_code)] // complete subsystem API; some entries are not yet exercised
 // Framebuffer drawing: an off-screen canvas with clipped primitives and text,
 // blitted to the firmware's graphics output. The Canvas code is shared in
 // spirit with the Linux edition; Screen here talks to UEFI GOP.

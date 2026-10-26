@@ -1,3 +1,4 @@
+#![allow(dead_code)] // complete subsystem API; some entries are not yet exercised
 // Terminal channels. Each desktop terminal window has one of these: the shell
 // thread writes bytes to it (parsed as VT100 into a cell grid) and reads the
 // keystrokes the desktop feeds in. No pty and no kernel involved.

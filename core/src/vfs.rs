@@ -1,3 +1,4 @@
+#![allow(dead_code)] // complete subsystem API; some entries are not yet exercised
 // An in-RAM filesystem: the whole tree lives in memory, like the Linux
 // edition's ramfs. Persistence (persist.rs) saves and restores a subtree as a
 // single archive file on the firmware's FAT volume, so teenyOS core needs no

@@ -1,3 +1,4 @@
+#![allow(dead_code)] // low-level runtime API kept complete even where unused
 // Global allocator over the firmware pool, memory intrinsics, and the panic
 // handler. No libc, no std.
 
@@ -18,6 +19,7 @@ static FREE: [AtomicUsize; CLASSES] = {
     const Z: AtomicUsize = AtomicUsize::new(0);
     [Z; CLASSES]
 };
+static BASE: AtomicUsize = AtomicUsize::new(0);
 static BUMP: AtomicUsize = AtomicUsize::new(0);
 static END: AtomicUsize = AtomicUsize::new(0);
 
@@ -47,6 +49,7 @@ unsafe impl GlobalAlloc for Slab {
             if base.is_null() {
                 return core::ptr::null_mut();
             }
+            BASE.store(base as usize, Ordering::Relaxed);
             BUMP.store(base as usize, Ordering::Relaxed);
             END.store(base as usize + sz, Ordering::Relaxed);
         }
@@ -84,6 +87,17 @@ unsafe impl GlobalAlloc for Slab {
 
 #[global_allocator]
 static HEAP: Slab = Slab;
+
+/// (bytes handed out so far, total arena size). Approximate: the bump pointer
+/// minus the base, which counts freed-and-reused blocks as still used.
+pub fn heap_stats() -> (usize, usize) {
+    let base = BASE.load(Ordering::Relaxed);
+    if base == 0 {
+        return (0, 0);
+    }
+    let total = END.load(Ordering::Relaxed) - base;
+    (BUMP.load(Ordering::Relaxed) - base, total)
+}
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
