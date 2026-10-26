@@ -1,0 +1,43 @@
+--- a/arch/x86/kernel/vmlinux.lds.S
++++ b/arch/x86/kernel/vmlinux.lds.S
+@@ -59,15 +59,21 @@
+  * so we can enable protection checks as well as retain 2MB large page
+  * mappings for kernel text.
+  */
+-#define X86_ALIGN_RODATA_BEGIN	. = ALIGN(HPAGE_SIZE);
++/*
++ * teenyOS: page alignment instead of 2 MB. The 2 MB padding is freed after
++ * boot, but the decompressor must still reserve room for it, which raises
++ * the minimum RAM by several megabytes. The cost is that kernel text is
++ * mapped with 4 KB pages instead of 2 MB ones.
++ */
++#define X86_ALIGN_RODATA_BEGIN	. = ALIGN(PAGE_SIZE);
+ 
+ #define X86_ALIGN_RODATA_END					\
+-		. = ALIGN(HPAGE_SIZE);				\
++		. = ALIGN(PAGE_SIZE);				\
+ 		__end_rodata_hpage_align = .;			\
+ 		__end_rodata_aligned = .;
+ 
+-#define ALIGN_ENTRY_TEXT_BEGIN	. = ALIGN(PMD_SIZE);
+-#define ALIGN_ENTRY_TEXT_END	. = ALIGN(PMD_SIZE);
++#define ALIGN_ENTRY_TEXT_BEGIN	. = ALIGN(PAGE_SIZE);
++#define ALIGN_ENTRY_TEXT_END	. = ALIGN(PAGE_SIZE);
+ 
+ /*
+  * This section contains data which will be mapped as decrypted. Memory
+@@ -78,12 +84,12 @@
+  * decrypted to avoid exposing more than we wish.
+  */
+ #define BSS_DECRYPTED						\
+-	. = ALIGN(PMD_SIZE);					\
++	. = ALIGN(PAGE_SIZE);					\
+ 	__start_bss_decrypted = .;				\
+ 	*(.bss..decrypted);					\
+ 	. = ALIGN(PAGE_SIZE);					\
+ 	__start_bss_decrypted_unused = .;			\
+-	. = ALIGN(PMD_SIZE);					\
++	. = ALIGN(PAGE_SIZE);					\
+ 	__end_bss_decrypted = .;				\
+ 
+ #else

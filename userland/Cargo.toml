@@ -1,0 +1,21 @@
+[package]
+name = "teeny"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "teeny"
+path = "src/main.rs"
+test = false
+bench = false
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+[profile.dev]
+panic = "abort"

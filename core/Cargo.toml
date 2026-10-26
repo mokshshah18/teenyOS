@@ -1,0 +1,22 @@
+[package]
+name = "teenycore"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "teenycore"
+path = "src/main.rs"
+test = false
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+panic = "abort"
+
+[features]
+selftest = []

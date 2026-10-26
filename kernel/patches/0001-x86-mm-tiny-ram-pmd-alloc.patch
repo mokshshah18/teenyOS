@@ -1,0 +1,24 @@
+--- a/arch/x86/mm/init.c
++++ b/arch/x86/mm/init.c
+@@ -639,8 +639,19 @@
+ 	 */
+ 	addr = memblock_phys_alloc_range(PMD_SIZE, PMD_SIZE, map_start,
+ 					 map_end);
+-	memblock_phys_free(addr, PMD_SIZE);
+-	real_end = addr + PMD_SIZE;
++	if (addr) {
++		memblock_phys_free(addr, PMD_SIZE);
++		real_end = addr + PMD_SIZE;
++	} else {
++		/*
++		 * No free PMD-aligned block: on non-PAE i386 a PMD is 4 MB, so
++		 * this happens on machines with less than ~9 MB of RAM. Freeing
++		 * "addr" here would release [0, 4 MB), which holds the kernel
++		 * itself. Map from the top of memory instead; page tables come
++		 * from the brk buffer.
++		 */
++		real_end = map_end;
++	}
+ 
+ 	/* step_size need to be small so pgt_buf from BRK could cover it */
+ 	step_size = PMD_SIZE;

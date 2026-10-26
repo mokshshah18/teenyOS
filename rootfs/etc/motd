@@ -1,0 +1,4 @@
+
+  teenyOS. Type 'help' to list commands, 'edit FILE' to edit a file.
+  Files live in RAM until you run 'persist enable' (or use the Storage app).
+
