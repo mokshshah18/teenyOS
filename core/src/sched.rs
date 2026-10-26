@@ -262,3 +262,20 @@ pub fn join(id: u32) -> Option<i32> {
         }
     }
 }
+
+/// Is there a live (non-zombie) thread with this id?
+pub fn alive(id: u32) -> bool {
+    with(|s| s.threads.iter().any(|t| t.id == id && t.state != State::Zombie))
+}
+
+/// Mark a thread dead so it is never scheduled again and gets reaped. Safe
+/// only for a thread that is not the one currently running.
+pub fn kill_thread(id: u32) {
+    with(|s| {
+        for t in s.threads.iter_mut() {
+            if t.id == id {
+                t.state = State::Zombie;
+            }
+        }
+    });
+}
